@@ -1,0 +1,106 @@
+diff --git a/sim/ppc/cpu.c b/sim/ppc/cpu.c
+index c7e8bdf..98e4377 100644
+--- a/sim/ppc/cpu.c
++++ b/sim/ppc/cpu.c
+@@ -400,4 +400,31 @@ cpu_print_info(cpu *processor, int verbose)
+ {
+ }
+ 
++INLINE_CPU\
++(void)
++show_trace(cpu* p) {
++  if (ppc_trace[trace_pc]) {
++    printf("\nPC: %05x\n", p->program_counter);
++  }
++  if (ppc_trace[trace_reg]) {
++    int i;
++    for (i = 0; i < 32; i++) {
++      printf("R%02d: %08x\n", i, p->regs.gpr[i]);
++    }
++    printf("CR:");
++    for (i = 0; i < 32; i++) {
++      if (i % 4 == 0)
++        putchar(' ');
++      printf("%d", (p->regs.cr >> (31 - i)) & 1);
++    }
++    puts("");
++    printf("XER: %08x\n", p->regs.spr[spr_xer]);
++    printf("LR: %08x\n", p->regs.spr[spr_lr]);
++    printf("CTR: %08x\n", p->regs.spr[spr_ctr]);
++  }
++  if (ppc_trace[trace_pc] || ppc_trace[trace_reg] || ppc_trace[trace_mem]) {
++    fflush(stdout);
++  }
++}
++
+ #endif /* _CPU_C_ */
+diff --git a/sim/ppc/cpu.h b/sim/ppc/cpu.h
+index cb141f2..83512a4 100644
+--- a/sim/ppc/cpu.h
++++ b/sim/ppc/cpu.h
+@@ -250,4 +250,6 @@ INLINE_CPU\
+ # include "cpu.c"
+ #endif
+ 
++void show_trace(cpu* p);
++
+ #endif
+diff --git a/sim/ppc/debug.c b/sim/ppc/debug.c
+index 1ec279b..3de0e12 100644
+--- a/sim/ppc/debug.c
++++ b/sim/ppc/debug.c
+@@ -84,7 +84,10 @@ static trace_option_descriptor trace_description[] = {
+   /*{ trace_tbd, "tbd", "Trace any missing features" },*/
+   { trace_print_device_tree, "print-device-tree", "Output the contents of the device tree" },
+   { trace_dump_device_tree, "dump-device-tree", "Output the contents of the device tree then exit" },
+-  /* sentinal */
++  { trace_pc, "pc" },
++  { trace_reg, "regs" },
++  { trace_mem, "mem" },
++ /* sentinal */
+   { nr_trace_options, NULL },
+ };
+ 
+diff --git a/sim/ppc/debug.h b/sim/ppc/debug.h
+index fdf2e3c..1440cd7 100644
+--- a/sim/ppc/debug.h
++++ b/sim/ppc/debug.h
+@@ -75,6 +75,9 @@ typedef enum {
+   trace_print_info,
+   trace_print_device_tree,
+   trace_dump_device_tree,
++  trace_pc,
++  trace_reg,
++  trace_mem,
+   nr_trace_options
+ } trace_options;
+ 
+diff --git a/sim/ppc/emul_unix.c b/sim/ppc/emul_unix.c
+index d72525d..97a5e15 100644
+--- a/sim/ppc/emul_unix.c
++++ b/sim/ppc/emul_unix.c
+@@ -957,8 +957,9 @@ emul_unix_create(device *root,
+   /* establish a few defaults */
+   if (image->xvec->flavour == bfd_target_elf_flavour) {
+     elf_binary = 1;
+-    top_of_stack = 0xe0000000;
+-    stack_size =   0x00100000;
++    //top_of_stack = 0xe0000000;
++    top_of_stack = 0x00009100;
++    stack_size =   0x00002000;
+   }
+   else {
+     elf_binary = 0;
+diff --git a/sim/ppc/gen-idecode.c b/sim/ppc/gen-idecode.c
+index 256ba75..4daa527 100644
+--- a/sim/ppc/gen-idecode.c
++++ b/sim/ppc/gen-idecode.c
+@@ -914,6 +914,8 @@ print_run_until_stop_body(lf *file,
+     lf_putstr(file, "unsigned_word cia =\n");
+     lf_putstr(file, "  cpu_get_program_counter(processor);\n");
+ 
++    lf_putstr(file, "show_trace(processor);\n");
++
+     if (!(code & generate_with_icache)) {
+       lf_putstr(file, "instruction_word instruction =\n");
+       lf_putstr(file, "  vm_instruction_map_read(cpu_instruction_map(processor), processor, cia);\n");

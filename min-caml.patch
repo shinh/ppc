@@ -1,0 +1,84 @@
+diff --git a/PowerPC/emit.ml b/PowerPC/emit.ml
+index bf323ec..18ec83a 100644
+--- a/PowerPC/emit.ml
++++ b/PowerPC/emit.ml
+@@ -30,8 +30,10 @@ let reg r =
+   else r 
+ 
+ let load_label r label =
+-  "\tlis\t" ^ (reg r) ^ ", ha16(" ^ label ^ ")\n" ^
+-  "\taddi\t" ^ (reg r) ^ ", " ^ (reg r) ^ ", lo16(" ^ label ^ ")\n"
++  (*"\tlis\t" ^ (reg r) ^ ", ha16(" ^ label ^ ")\n" ^*)
++  (*"\taddi\t" ^ (reg r) ^ ", " ^ (reg r) ^ ", lo16(" ^ label ^ ")\n"*)
++  "\tlis\t" ^ (reg r) ^ ", " ^ label ^ "@ha\n" ^
++  "\taddi\t" ^ (reg r) ^ ", " ^ (reg r) ^ ", " ^ label ^ "@l\n"
+ 
+ (* 関数呼び出しのために引数を並べ替える (register shuffling) *)
+ let rec shuffle sw xys = 
+@@ -279,7 +281,8 @@ let h oc { name = Id.L(x); args = _; fargs = _; body = e; ret = _ } =
+ let f oc (Prog(data, fundefs, e)) =
+   Format.eprintf "generating assembly...@.";
+   (if data <> [] then
+-    (Printf.fprintf oc "\t.data\n\t.literal8\n";
++    ((*Printf.fprintf oc "\t.data\n\t.literal8\n";*)
++     Printf.fprintf oc "\t.data\n";
+      List.iter
+        (fun (Id.L(x), d) ->
+ 	 Printf.fprintf oc "\t.align 3\n";
+@@ -293,7 +296,9 @@ let f oc (Prog(data, fundefs, e)) =
+   List.iter (fun fundef -> h oc fundef) fundefs;
+   Printf.fprintf oc "_min_caml_start: # main entry point\n";
+   Printf.fprintf oc "\tmflr\tr0\n";
+-  Printf.fprintf oc "\tstmw\tr30, -8(r1)\n";
++(*  Printf.fprintf oc "\tstmw\tr30, -8(r1)\n"; *)
++  Printf.fprintf oc "\tstw\tr30, -8(r1)\n";
++  Printf.fprintf oc "\tstw\tr31, -4(r1)\n";
+   Printf.fprintf oc "\tstw\tr0, 8(r1)\n";
+   Printf.fprintf oc "\tstwu\tr1, -96(r1)\n";
+   Printf.fprintf oc "   # main program start\n";
+@@ -305,5 +310,7 @@ let f oc (Prog(data, fundefs, e)) =
+   Printf.fprintf oc "\tlwz\tr1, 0(r1)\n";
+   Printf.fprintf oc "\tlwz\tr0, 8(r1)\n";
+   Printf.fprintf oc "\tmtlr\tr0\n";
+-  Printf.fprintf oc "\tlmw\tr30, -8(r1)\n";
++(*  Printf.fprintf oc "\tlmw\tr30, -8(r1)\n"; *)
++  Printf.fprintf oc "\tlwz\tr30, -8(r1)\n";
++  Printf.fprintf oc "\tlwz\tr31, -4(r1)\n";
+   Printf.fprintf oc "\tblr\n"
+diff --git a/id.ml b/id.ml
+index ef978bb..1cbd31d 100644
+--- a/id.ml
++++ b/id.ml
+@@ -9,7 +9,7 @@ let rec pp_list = function
+ let counter = ref 0
+ let genid s =
+   incr counter;
+-  Printf.sprintf "%s.%d" s !counter
++  Printf.sprintf ".%s.%d" s !counter
+ 
+ let rec id_of_typ = function
+   | Type.Unit -> "u"
+@@ -18,8 +18,8 @@ let rec id_of_typ = function
+   | Type.Float -> "d"
+   | Type.Fun _ -> "f"
+   | Type.Tuple _ -> "t"
+-  | Type.Array _ -> "a" 
++  | Type.Array _ -> "a"
+   | Type.Var _ -> assert false
+ let gentmp typ =
+   incr counter;
+-  Printf.sprintf "T%s%d" (id_of_typ typ) !counter
++  Printf.sprintf ".T%s%d" (id_of_typ typ) !counter
+diff --git a/min-rt/Makefile b/min-rt/Makefile
+index 7157ccd..0c978d3 100644
+--- a/min-rt/Makefile
++++ b/min-rt/Makefile
+@@ -10,7 +10,7 @@ test: $(SLDS:%=%.cmp) $(SLDS:%=%.diff.ocamlopt-gcc.ppm) $(SLDS:%=%.diff.gcc-GCC.
+ clean:
+ 	rm -f *.cmp *.ppm *.ppm.tmp ppmdiff raytrace RayTrace *.sld_ *.cmo *.cmx *.cmi *.o min-rt_b min-rt min-rt.s min-rt.min-caml
+ 
+-%.cmp: %.ocamlc.ppm %.mincaml.ppm # avoid 80-bit float on x86
++%.cmp: %.ocamlopt.ppm %.mincaml.ppm # avoid 80-bit float on x86
+ 	diff $^ > $@
+ %.diff.gcc-GCC.ppm: ppmdiff %.gcc.ppm %.GCC.ppm
+ 	./$^ $@
