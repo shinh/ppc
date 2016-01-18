@@ -5,21 +5,35 @@
 module cpu_test;
    reg rst;
    reg clk;
+   reg ram_clk;
 
-   reg [`RAM_ADDR_BITS-1:0] ram_addr;
-   reg [3:0]  ram_byteen;
-   reg [31:0] ram_wrdata;
-   reg        ram_rden;
-   reg        ram_wren;
-   wire [31:0] ram_rddata;
+   wire [`RAM_ADDR_BITS-1:0] ram_addr;
+   wire [`RAM_ADDR_BITS-1:0] ram_addr2;
+   wire [3:0]                ram_byteen;
+   wire [31:0]               ram_wrdata;
+   wire [31:0]               ram_wrdata2;
+   wire                      ram_wren;
+   wire                      ram_wren2;
+   wire [31:0]               ram_rddata;
+   wire [31:0]               ram_rddata2;
+   assign ram_addr = cpu_ram_addr;
+   assign ram_byteen = cpu_ram_byteen;
+   assign ram_wrdata = cpu_ram_wrdata;
+   assign ram_wren = cpu_ram_wren;
+   assign ram_addr2 = cpu_ram_addr2;
+   assign ram_wrdata2 = 0;
+   assign ram_wren2 = 0;
 
    sram sram(.addr(ram_addr),
+             .addr2(ram_addr2),
              .byteen(ram_byteen),
-             .clk(clk),
+             .clk(ram_clk),
              .data(ram_wrdata),
-             .rden(ram_rden),
+             .data2(ram_wrdata2),
              .wren(ram_wren),
-             .q(ram_rddata));
+             .wren2(ram_wren2),
+             .q(ram_rddata),
+             .q2(ram_rddata2));
 
    reg                         tx_req = 0;
    wire                        tx_ready;
@@ -36,9 +50,9 @@ module cpu_test;
    wire [1:0]  cpu_next_state;
    wire [5:0]  cpu_leds;
    wire [`RAM_ADDR_BITS-1:0] cpu_ram_addr;
+   wire [`RAM_ADDR_BITS-1:0] cpu_ram_addr2;
    wire [3:0]                cpu_ram_byteen;
    wire [31:0]               cpu_ram_wrdata;
-   wire                      cpu_ram_rden;
    wire                      cpu_ram_wren;
    wire                      cpu_tx_req;
    wire [7:0]                cpu_tx_data;
@@ -49,11 +63,12 @@ module cpu_test;
            .next_state(cpu_next_state),
            .leds(cpu_leds),
            .ram_addr(cpu_ram_addr),
+           .ram_addr2(cpu_ram_addr2),
            .ram_byteen(cpu_ram_byteen),
            .ram_wrdata(cpu_ram_wrdata),
-           .ram_rden(cpu_ram_rden),
            .ram_wren(cpu_ram_wren),
            .ram_rddata(ram_rddata),
+           .ram_rddata2(ram_rddata2),
 
            .tx_req(cpu_tx_req),
            .tx_ready(tx_ready),
@@ -63,28 +78,21 @@ module cpu_test;
 
            .debug_out(cpu_debug_out));
 
-   always #1 clk = !clk;
+   always #2 clk = !clk;
+   always #1 ram_clk = !ram_clk;
 
    integer                   i;
 
    always @(posedge clk) begin
-      ram_addr <= cpu_ram_addr;
-      ram_byteen <= cpu_ram_byteen;
-      ram_wrdata <= cpu_ram_wrdata;
-      ram_rden <= cpu_ram_rden;
-      ram_wren <= cpu_ram_wren;
       tx_req <= cpu_tx_req;
       tx_data <= cpu_tx_data;
-
-      if (sram.mem[4'hffe8 / 4]) begin
-         $display("hmmm??? pc=%x", cpu.pc*4);
-      end
    end
 
    initial begin
       $readmemh(`RAM, sram.mem, 4096 / 4);
 
       clk <= 1'b0;
+      ram_clk <= 1'b0;
       rst <= 1'b1;
       #2;
 

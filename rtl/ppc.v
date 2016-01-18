@@ -38,9 +38,15 @@ module ppc(
    input [1:0]                 GPIO_IN;
 
    //wire                        clk = CLOCK_50;
+   //parameter sys_clk = 50000000;
    wire                        clk;
-   parameter sys_clk = 10000000;
+   //parameter sys_clk = 25000000;
+   //parameter sys_clk = 37500000;
+   parameter sys_clk = 50000000;
    pll pll(.inclk0(CLOCK_50), .c0(clk));
+
+   wire                        ram_clk;
+   pll_ram pll_ram(.inclk0(CLOCK_50), .c0(ram_clk));
 
    wire                        rst;
    wire                        rx, tx;
@@ -63,26 +69,33 @@ module ppc(
    rs232c_rx #(sys_clk) rs232c_rx(.clk(clk), .rst(rst), .din(rx),
                                   .rd(rx_ready), .dout(rx_data));
 
-   reg [`RAM_ADDR_BITS-1:0]    ram_addr;
-   reg [3:0]                   ram_byteen;
-   reg [31:0]                  ram_wrdata;
-   reg                         ram_rden;
-   reg                         ram_wren;
-   wire [31:0]                 ram_rddata;
-   ram ram(.address(ram_addr),
-           .byteena(ram_byteen),
-           .clock(clk),
-           .data(ram_wrdata),
-           .rden(ram_rden),
-           .wren(ram_wren),
-           .q(ram_rddata));
+   wire [`RAM_ADDR_BITS-1:0]    ram_addr;
+   wire [3:0]                   ram_byteen;
+   wire [31:0]                  ram_wrdata;
+   wire                         ram_wren;
+   wire [31:0]                  ram_rddata;
+   wire [`RAM_ADDR_BITS-1:0]    ram_addr2;
+   wire [31:0]                  ram_wrdata2;
+   wire                         ram_wren2;
+   wire [31:0]                  ram_rddata2;
+   assign ram_wrdata2 = 0;
+   assign ram_wren2 = 0;
+   ram ram(.address_a(ram_addr),
+           .address_b(ram_addr2),
+           .byteena_a(ram_byteen),
+           .clock(ram_clk),
+           .data_a(ram_wrdata),
+           .data_b(ram_wrdata2),
+           .wren_a(ram_wren),
+           .wren_b(ram_wren2),
+           .q_a(ram_rddata),
+           .q_b(ram_rddata2));
 
    wire [1:0]                  init_next_state;
    wire [5:0]                  init_leds;
    wire [`RAM_ADDR_BITS-1:0]   init_ram_addr;
    wire [3:0]                  init_ram_byteen;
    wire [31:0]                 init_ram_wrdata;
-   wire                        init_ram_rden;
    wire                        init_ram_wren;
    init init(.clk(clk && state == `PPC_INIT),
              .rst(rst),
@@ -91,7 +104,6 @@ module ppc(
              .ram_addr(init_ram_addr),
              .ram_byteen(init_ram_byteen),
              .ram_wrdata(init_ram_wrdata),
-             .ram_rden(init_ram_rden),
              .ram_wren(init_ram_wren),
              .ram_rddata(ram_rddata));
 
@@ -100,7 +112,6 @@ module ppc(
    wire [`RAM_ADDR_BITS-1:0]   load_ram_addr;
    wire [3:0]                  load_ram_byteen;
    wire [31:0]                 load_ram_wrdata;
-   wire                        load_ram_rden;
    wire                        load_ram_wren;
    load load(.clk(clk && state == `PPC_LOAD),
              .rst(rst),
@@ -108,7 +119,6 @@ module ppc(
              .leds(load_leds),
              .ram_addr(load_ram_addr),
              .ram_byteen(load_ram_byteen),
-             .ram_rden(load_ram_rden),
              .ram_wrdata(load_ram_wrdata),
              .ram_wren(load_ram_wren),
              .ram_rddata(ram_rddata),
@@ -118,9 +128,9 @@ module ppc(
    wire [1:0]                  cpu_next_state;
    wire [5:0]                  cpu_leds;
    wire [`RAM_ADDR_BITS-1:0]   cpu_ram_addr;
+   wire [`RAM_ADDR_BITS-1:0]   cpu_ram_addr2;
    wire [3:0]                  cpu_ram_byteen;
    wire [31:0]                 cpu_ram_wrdata;
-   wire                        cpu_ram_rden;
    wire                        cpu_ram_wren;
    wire                        cpu_tx_req;
    wire [7:0]                  cpu_tx_data;
@@ -130,11 +140,12 @@ module ppc(
            .next_state(cpu_next_state),
            .leds(cpu_leds),
            .ram_addr(cpu_ram_addr),
+           .ram_addr2(cpu_ram_addr2),
            .ram_byteen(cpu_ram_byteen),
            .ram_wrdata(cpu_ram_wrdata),
-           .ram_rden(cpu_ram_rden),
            .ram_wren(cpu_ram_wren),
            .ram_rddata(ram_rddata),
+           .ram_rddata2(ram_rddata2),
 
            .tx_req(cpu_tx_req),
            .tx_ready(tx_ready),
@@ -149,6 +160,28 @@ module ppc(
    reg [11:0]                  dump_steps = 0;
    reg [7:0]                   dump_data;
    reg                         dump_ready = 0;
+   reg [`RAM_ADDR_BITS-1:0]    dump_ram_addr;
+   reg [3:0]                   dump_ram_byteen;
+   reg [31:0]                  dump_ram_wrdata;
+   reg                         dump_ram_wren;
+
+   assign ram_addr = (state == `PPC_INIT ? init_ram_addr :
+                      state == `PPC_LOAD ? load_ram_addr :
+                      state == `PPC_EXEC ? cpu_ram_addr :
+                      state == `PPC_FAIL ? dump_ram_addr : 0);
+   assign ram_addr2 = (state == `PPC_EXEC ? cpu_ram_addr2 : 0);
+   assign ram_byteen = (state == `PPC_INIT ? init_ram_byteen :
+                        state == `PPC_LOAD ? load_ram_byteen :
+                        state == `PPC_EXEC ? cpu_ram_byteen :
+                        state == `PPC_FAIL ? dump_ram_byteen : 0);
+   assign ram_wrdata = (state == `PPC_INIT ? init_ram_wrdata :
+                        state == `PPC_LOAD ? load_ram_wrdata :
+                        state == `PPC_EXEC ? cpu_ram_wrdata :
+                        state == `PPC_FAIL ? dump_ram_wrdata : 0);
+   assign ram_wren = (state == `PPC_INIT ? init_ram_wren :
+                      state == `PPC_LOAD ? load_ram_wren :
+                      state == `PPC_EXEC ? cpu_ram_wren :
+                      state == `PPC_FAIL ? dump_ram_wren : 0);
 
    always @(posedge clk) begin
       if (rst) begin
@@ -162,30 +195,15 @@ module ppc(
       end else if (state == `PPC_INIT) begin
          state <= init_next_state;
          leds <= init_leds;
-         ram_addr <= init_ram_addr;
-         ram_byteen <= init_ram_byteen;
-         ram_wrdata <= init_ram_wrdata;
-         ram_rden <= init_ram_rden;
-         ram_wren <= init_ram_wren;
          tx_req <= 0;
          dump_steps <= 0;
       end else if (state == `PPC_LOAD) begin
          state <= load_next_state;
          leds <= load_leds;
-         ram_addr <= load_ram_addr;
-         ram_byteen <= load_ram_byteen;
-         ram_wrdata <= load_ram_wrdata;
-         ram_rden <= load_ram_rden;
-         ram_wren <= load_ram_wren;
       end else if (state == `PPC_EXEC) begin
          dump_steps <= 36 * 32 / 8 - 1;
          state <= cpu_next_state;
          leds <= cpu_leds;
-         ram_addr <= cpu_ram_addr;
-         ram_byteen <= cpu_ram_byteen;
-         ram_wrdata <= cpu_ram_wrdata;
-         ram_rden <= cpu_ram_rden;
-         ram_wren <= cpu_ram_wren;
          tx_req <= cpu_tx_req;
          tx_data <= cpu_tx_data;
       end else if (state == `PPC_FAIL) begin
@@ -210,10 +228,9 @@ module ppc(
                ptr <= 1;
                wait_counter <= 20;
                dump_steps <= dump_steps - 1;
-               ram_addr <= ptr[`RAM_ADDR_BITS+5-3:2];
-               //ram_byteen <= 4'd8 >> ptr[1:0];
-               ram_byteen <= 4'd15;
-               ram_rden <= 1;
+               dump_ram_addr <= ptr[`RAM_ADDR_BITS+5-3:2];
+               //dump_ram_byteen <= 4'd8 >> ptr[1:0];
+               dump_ram_byteen <= 4'd15;
                //dump_ready <= 0;
             end
          end else if (ptr == 4096*5) begin // if (dump_steps < 36 * 32 / 8)
@@ -268,9 +285,8 @@ module ppc(
 
             ptr <= ptr + 1;
             wait_counter <= 20;
-            ram_addr <= ptr[`RAM_ADDR_BITS+5-3:2];
-            //ram_byteen <= 4'd8 >> ptr[1:0];
-            ram_rden <= 1;
+            dump_ram_addr <= ptr[`RAM_ADDR_BITS+5-3:2];
+            //dump_ram_byteen <= 4'd8 >> ptr[1:0];
             dump_ready <= 1;
          end
          if (!tx_ready) begin

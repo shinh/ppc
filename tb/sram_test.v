@@ -2,20 +2,22 @@
 
 module sram_test;
    reg [12:0] addr;
+   reg [12:0] addr2;
    reg [3:0]  byteen;
    reg        clk;
    reg [31:0] data;
-   reg        rden;
    reg        wren;
    wire [31:0] out;
+   wire [31:0] out2;
 
    sram sram(.addr(addr),
+             .addr2(addr2),
              .byteen(byteen),
              .clk(clk),
              .data(data),
-             .rden(rden),
              .wren(wren),
-             .q(out));
+             .q(out),
+             .q2(out2));
 
    always #1 clk = !clk;
 
@@ -26,7 +28,6 @@ module sram_test;
          addr <= a;
          byteen <= b;
          data <= d;
-         rden <= 1'b0;
          wren <= 1'b1;
          #2;
       end
@@ -37,11 +38,18 @@ module sram_test;
       begin
          addr <= a;
          byteen <= b;
-         rden <= 1'b1;
          wren <= 1'b0;
          #2;
       end
    endtask // read
+
+   task read2(input [12:0] a);
+      begin
+         addr2 <= a;
+         wren <= 1'b0;
+         #2;
+      end
+   endtask // read2
 
    task read_and_display(input [12:0] a,
                          input [3:0] b);
@@ -54,7 +62,6 @@ module sram_test;
    initial begin
       $dumpfile("sram_test.vcd");
       clk <= 1'b0;
-      rden <= 1'b0;
       wren <= 1'b0;
 
       write(12'h0, 4'b1111, 32'h12345678);
@@ -72,6 +79,9 @@ module sram_test;
       read_and_display(12'h0, 4'b1111);
 
       read_and_display(12'h1, 4'b1111);
+
+      read2(12'h1);
+      $display("%x", out2);
 
       $finish;
    end

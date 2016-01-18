@@ -47,7 +47,6 @@ module load(input                       clk,
    reg [23:0]                 code_size;
    reg [7:0]                  rx_checksum;
    reg [7:0]                  ram_checksum;
-   reg [30:0]                 wait_counter = 0;
 
    always @(posedge clk or posedge rst) begin
       if (rst) begin
@@ -58,9 +57,6 @@ module load(input                       clk,
          wren <= 0;
          rx_checksum <= 0;
          ram_checksum <= 0;
-         wait_counter <= 0;
-      end else if (wait_counter) begin
-         wait_counter <= wait_counter - 1;
       end else if (state == LOAD_READ_SIZE) begin
          if (rx_ready) begin
             if (ptr == 0) begin
@@ -131,8 +127,6 @@ module load(input                       clk,
             rden <= 0;
          end else begin
             rden <= 1;
-            wait_counter <= 2;
-            //wait_counter <= 2 * 1000 * 1000 * 10;
          end
       end
    end

@@ -34,8 +34,6 @@ module init(input                       clk,
    reg                        wren = 0;
    assign ram_wren = wren;
 
-   reg [30:0]                 wait_counter = 0;
-
    assign leds[5:2] = ptr[3:0];
 
    always @(posedge clk or posedge rst) begin
@@ -45,8 +43,6 @@ module init(input                       clk,
          failed <= 0;
          rden <= 0;
          wren <= 0;
-      end else if (wait_counter) begin
-         wait_counter <= wait_counter - 1;
       end else if (state == INIT_TEST_WRITE) begin
          if (wren) begin
             if (ptr == `RAM_ADDR_MAX) begin
@@ -75,7 +71,6 @@ module init(input                       clk,
             rden <= 0;
          end else begin
             rden <= 1;
-            wait_counter <= 2;
          end
       end else if (state == INIT_RAM) begin
          if (wren) begin

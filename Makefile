@@ -18,9 +18,10 @@ ML_EXES := $(ML_OBJS:ml/%.o=exe/%)
 ML_EXES := $(filter-out exe/float exe/inprod-loop exe/matmul exe/inprod exe/inprod-rec exe/matmul-flat exe/non-tail-if, $(ML_EXES))
 
 RTL_SRCS := $(wildcard rtl/*.v)
-RTL_SRCS := $(filter-out rtl/ram.v rtl/pll.v, $(RTL_SRCS))
+RTL_SRCS := $(filter-out rtl/ram.v rtl/pll.v rtl/pll_ram.v, $(RTL_SRCS))
 
 TB_SRCS := $(filter-out tb/cpu_test.v, $(wildcard tb/*_test.v))
+TB_SIM_SRCS := $(wildcard tb/*_sim.v)
 TB_EXES := $(TB_SRCS:.v=)
 
 EXES := $(AS_EXES) $(C_EXES) $(ML_EXES)
@@ -29,7 +30,7 @@ EXE_STDOUTS := $(EXES:=.stdout)
 EXE_TRACES := $(EXES:=.trace)
 STDINS := $(wildcard $(EXES:exe/%=tb/%.stdin))
 
-TB_CPU_SRCS := tb/cpu_test.v tb/rs232c_sim.v
+TB_CPU_SRCS := tb/cpu_test.v $(TB_SIM_SRCS)
 TB_CPU_RAMS := $(BINS:exe/%.bin=tb/cpu_test.%.ram)
 TB_CPU_EXES := $(TB_CPU_RAMS:.ram=)
 TB_CPU_TRACE_EXES := $(TB_CPU_RAMS:tb/cpu_test.%.ram=tb/cpu_trace.%)
@@ -83,8 +84,8 @@ $(ML_EXES): exe/%: ml/%.o libmincaml.o mincamlstub.o libc.o ppc.lds | exe
 $(BINS): %.bin: %
 	objcopy -I elf32-big -O binary $< $@
 
-$(TB_EXES): %: %.v $(RTL_SRCS)
-	$(IVERILOG) $(RTL_SRCS) $< -o $@
+$(TB_EXES): %: %.v $(RTL_SRCS) $(TB_SIM_SRCS)
+	$(IVERILOG) $(RTL_SRCS) $(TB_SIM_SRCS) $< -o $@
 
 define stdin-impl
 $(if $1,$2$1$3)
